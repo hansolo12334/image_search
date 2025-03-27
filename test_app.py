@@ -24,7 +24,7 @@ if __name__=="__main__":
   folder_path=r"C:/Users/hansolo/Pictures"
   message={
     "folder_path":folder_path,
-    "recur" :False
+    "recur" :True
   }
   url=f"{BASE_URL}/image_collect/generate/"
   re=requests.get(url=url,json=message)

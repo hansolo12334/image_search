@@ -1,5 +1,7 @@
 {
   "lm_studio_url" : "http://localhost:1234/v1/chat/completions",
+  "remote_url" : "http://127.0.0.1:6006/v1/chat/completions",
+  "use_remote" : true,
   "data_base_path": "../../../catches/data.db",
   "thumbnail_image_path": "../../../catches/thumbnail_image/"
 }

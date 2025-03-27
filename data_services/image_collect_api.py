@@ -89,7 +89,54 @@ async def generate_thumbnail_image(file_name,new_width=500):
     print("生成缩略图完成")
     return f"data:image/png;base64,{base64_data}",str(file_uuid),thumbnail_path
 
+async def require_to_remote(image_base64: str,api_url):
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer token-abc123"
+    }
+    request_data = {
+        "model": "./qwen2-vl",
+          "messages": [
+          {
+              "role": "user",
+              "content": [
+                  {
+                      "type": "text", #不要联想图片以外的事物,
+                      "text": "使用10个关键词总结这个图片,不要联想图片以外的事物,输出格式: 1.xxx 2.xxx 3.xxx 4.xxx 5.xxx 6.xxx 7.xxx 8.xxx 9.xxx 10.xxx" 
+                  },
+                  {
+                    "type": "image_url",
+                     "image_url": {
+                         "url": image_base64
+                     },
+                 
+                  }
+              ]
+          }
+        ]
+      }
+    # 发送 POST 请求
+    try:
+        response = requests.post(api_url, 
+                                data=json.dumps(request_data),  # 将字典转换为 JSON 字符串
+                                headers=headers)
+        
+        # 检查响应状态码
+        response.raise_for_status()  # 如果状态码不是 200，会抛出异常
 
+        # 解析响应
+        result = response.json()
+        # print("响应结果:", json.dumps(result, ensure_ascii=False, indent=2))
+        return result["choices"][0]["message"]["content"]
+        
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP 错误: {http_err}")
+    except requests.exceptions.RequestException as err:
+        print(f"请求错误: {err}")
+    except json.JSONDecodeError:
+        print("响应不是有效的 JSON 格式:", response.text)
+    return ""
+    
 
 async def require_to_lm_studio(image_base64: str,api_url):
   # 6.xxx 7.xxx 8.xxx"
@@ -167,8 +214,12 @@ async def generate_image_collection(request_data: dict):
     else:
       start_time = time.time()
       image_base64,file_uuid,thumbnail_path = await generate_thumbnail_image(image_path)
-    
-      description=await require_to_lm_studio(image_base64,"http://localhost:1234/v1/chat/completions")
+      
+      if app_config.use_remote:
+        logger.info("use_remote")
+        description=await require_to_remote(image_base64,app_config.remote_url)
+      else:
+        description=await require_to_lm_studio(image_base64,"http://localhost:1234/v1/chat/completions")
       end_time = time.time()
       run_time = end_time - start_time
       
@@ -186,6 +237,9 @@ async def generate_image_collection(request_data: dict):
       # 保存到sql数据库
       await image_collect_server.sql_service.save_to_db( file_uuid,image_name_kye, image_path, thumbnail_path,description)
       #保存到qdrant数据库
-      await image_collect_server.qdrant_service.store_into_qdrant(image_name_kye,file_uuid,image_path,thumbnail_path,description)
+      if len(description)<=0:
+          logger.warning("生成描述失败")
+      else:
+        await image_collect_server.qdrant_service.store_into_qdrant(image_name_kye,file_uuid,image_path,thumbnail_path,description)
       
   return {"success": True}

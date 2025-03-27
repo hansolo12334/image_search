@@ -1,5 +1,5 @@
 # coding:utf-8
-from PyQt5.QtCore import Qt, QPoint,QThread,pyqtSignal,QTimer,QEvent,QUrl
+from PyQt5.QtCore import Qt, QPoint,QThread,pyqtSignal,pyqtSlot,QTimer,QEvent,QUrl
 from PyQt5.QtGui import QPixmap, QDesktopServices,QFontMetrics
 from PyQt5.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget, QHBoxLayout
 
@@ -15,71 +15,13 @@ from ..common.translator import Translator
 
 from pathlib import Path
 import os
-from queue import Queue
 
+from .image_interface_utils import LineEdit,TagButton,ExampleCard
 
-class LineEdit(SearchLineEdit):
-    """ Search line edit """
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setPlaceholderText(self.tr('Search icons'))
-        self.setFixedWidth(304)
-        self.textChanged.connect(self.search)
+from data_services.config import app_config
 
 
 
-class TagButton(PushButton):
-  button_delete=pyqtSignal(bool)
-  def __init__(self, parent: QWidget = None):
-    super().__init__(parent)
-    
-    self.SELECTED_STATE=0 #0 包含  1 排除
-    self.selected_state_changed=False
-    self.delete_button_timer=QTimer(interval=800, timeout=self.exclude_button, singleShot=True)
-    
-  def mousePressEvent(self, e):
-    # button = e.button()
-    # if button == Qt.LeftButton:
-    #   self.SELECTED_STATE=self.SELECTED_STATE+1
-    #   if(self.SELECTED_STATE>3):
-    #     self.SELECTED_STATE=0
-      
-    # if button == Qt.RightButton:
-    #   self.SELECTED_STATE=self.SELECTED_STATE-1
-    #   if(self.SELECTED_STATE<0):
-    #     self.SELECTED_STATE=0
-    self.selected_state_changed=False
-    self.delete_button_timer.start()
-
-    super().mousePressEvent(e)
-  
-  def mouseReleaseEvent(self, e):
-    if self.selected_state_changed is False:
-      print("删除按钮")
-    super().mouseReleaseEvent(e)
-   
-   
-  def exclude_button(self):
-    if self.isPressed is True:
-      if self.SELECTED_STATE != 1:
-        print("排除")
-        self.SELECTED_STATE=1
-        font=self.font()
-        font.setStrikeOut(True)
-        self.setFont(font)
-      else:
-        print("包含")
-        self.SELECTED_STATE=0
-        font=self.font()
-        font.setStrikeOut(False)
-        self.setFont(font)
-        
-      self.selected_state_changed=True
-  
-   
-   
-   
 class ImageSourceLoaderThread(QThread):
   imageLoaded=pyqtSignal(list)
   finished=pyqtSignal()
@@ -117,86 +59,15 @@ class ImageSourceLoaderThread(QThread):
     return image_files
 
 
-class ExampleCard(QWidget):
-    """ Example card """
 
-    def __init__(self, title, widget: QWidget, stretch=0, parent=None):
-        super().__init__(parent=parent)
-        self.widget = widget
-        self.stretch = stretch
-
-        self.titleLabel = StrongBodyLabel(title, self)
-        self.card = QFrame(self)
-
-        self.sourceWidget = QFrame(self.card)
-        # self.sourcePath = sourcePath
-        # self.sourcePathLabel = BodyLabel(
-        #     self.tr('Source code'), self.sourceWidget)
-        # self.linkIcon = IconWidget(FluentIcon.LINK, self.sourceWidget)
-
-        self.vBoxLayout = QVBoxLayout(self)
-        self.cardLayout = QVBoxLayout(self.card)
-        self.topLayout = QHBoxLayout()
-        self.bottomLayout = QHBoxLayout(self.sourceWidget)
-
-        self.__initWidget()
-
-    def __initWidget(self):
-        # self.linkIcon.setFixedSize(16, 16)
-        self.__initLayout()
-
-        # self.sourceWidget.setCursor(Qt.PointingHandCursor)
-        # self.sourceWidget.installEventFilter(self)
-
-        self.card.setObjectName('card')
-        # self.sourceWidget.setObjectName('sourceWidget')
-
-    def __initLayout(self):
-        self.vBoxLayout.setSizeConstraint(QVBoxLayout.SetMinimumSize)
-        self.cardLayout.setSizeConstraint(QVBoxLayout.SetMinimumSize)
-        self.topLayout.setSizeConstraint(QHBoxLayout.SetMinimumSize)
-
-        self.vBoxLayout.setSpacing(12)
-        self.vBoxLayout.setContentsMargins(0, 0, 0, 0)
-        self.topLayout.setContentsMargins(12, 12, 12, 12)
-        self.bottomLayout.setContentsMargins(18, 18, 18, 18)
-        self.cardLayout.setContentsMargins(0, 0, 0, 0)
-
-        self.vBoxLayout.addWidget(self.titleLabel, 0, Qt.AlignTop)
-        self.vBoxLayout.addWidget(self.card, 0, Qt.AlignTop)
-        self.vBoxLayout.setAlignment(Qt.AlignTop)
-
-        self.cardLayout.setSpacing(0)
-        self.cardLayout.setAlignment(Qt.AlignTop)
-        self.cardLayout.addLayout(self.topLayout, 0)
-        self.cardLayout.addWidget(self.sourceWidget, 0, Qt.AlignBottom)
-
-        self.widget.setParent(self.card)
-        self.topLayout.addWidget(self.widget)
-        if self.stretch == 0:
-            self.topLayout.addStretch(1)
-
-        self.widget.show()
-
-        # self.bottomLayout.addWidget(self.sourcePathLabel, 0, Qt.AlignLeft)
-        # self.bottomLayout.addStretch(1)
-        # self.bottomLayout.addWidget(self.linkIcon, 0, Qt.AlignRight)
-        # self.bottomLayout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-
-    # def eventFilter(self, obj, e):
-    #     if obj is self.sourceWidget:
-    #         if e.type() == QEvent.MouseButtonRelease:
-    #             QDesktopServices.openUrl(QUrl(self.sourcePath))
-
-    #     return super().eventFilter(obj, e)
 
 class ImageCard(QFrame):
   imageCardClicked=pyqtSignal(QPoint)
   def __init__(self, path,filename,parent = None):
     super().__init__(parent=parent)
     
-    self.maxTextWidth=110 #180
-    self.maxCardWidth=150 #220
+    self.maxTextWidth=110 #180 180
+    self.maxCardWidth=150 #220 150
     
     self.setFixedSize(self.maxCardWidth, self.maxCardWidth)
     self.image_path=path
@@ -256,6 +127,7 @@ class ImageCard(QFrame):
       return 
  
     pixmap=QPixmap(self.image_path).scaled(self.maxTextWidth, self.maxTextWidth,Qt.KeepAspectRatio)
+    # pixmap=QPixmap(self.image_path)
     self.imageLabel.setPixmap(pixmap)
     self.isImageLoaded=True
     
@@ -323,8 +195,9 @@ class ImageCardView(QWidget):
     self.vBoxLayout.setSpacing(12)
     self.vBoxLayout.addWidget(self.searchLineEdit)
     
- 
-    self.tagCard = ExampleCard(self.tr('标签'), self.createWidget(), stretch=1)
+
+    self.tagCardWidget,self.tagCardLayout=self.createWidget()
+    self.tagCard = ExampleCard(self.tr('标签'), self.tagCardWidget, stretch=1)
     self.vBoxLayout.addWidget(self.tagCard, 0, Qt.AlignTop)
    
       
@@ -369,10 +242,31 @@ class ImageCardView(QWidget):
 
     for text in texts:
       tagbutton=TagButton(text)
+      tagbutton.button_delete.connect(self.delete_TagButton)
       self.tagButtons.append(tagbutton)
       layout.addWidget(tagbutton)
-    return widget
+    return widget,layout
   
+  @pyqtSlot(TagButton)
+  def delete_TagButton(self):
+    print(self.sender().text())
+    for button in self.tagButtons:
+      if button.text()==self.sender().text():
+        self.tagCardLayout.removeWidget(button)
+        self.tagButtons.remove(button)
+        button.deleteLater()
+        button=None
+        print("删除按钮")
+        self.tagCardLayout.update()
+        break
+
+  def add_TagButton(self,text):
+    tagbutton=TagButton(text)
+    tagbutton.button_delete.connect(self.delete_TagButton)
+    self.tagButtons.append(tagbutton)
+    self.tagCardLayout.addWidget(tagbutton)
+    pass
+    
   def loadImage(self):
     """从队列中加载图片"""
     if len(self.imageQueue)==0:
@@ -464,7 +358,9 @@ class ImageCardView(QWidget):
     self.cards_infos.append((idx,image_path,filename))
     self.allCards.append(card)
     self.flowLayout.addWidget(card)
-    
+  
+  
+  @pyqtSlot()
   def __setQss(self):
     self.view.setObjectName('imageView')
     self.scrollWidget.setObjectName('scrollWidget')
@@ -478,23 +374,42 @@ class ImageCardView(QWidget):
     if self.currentIndex >= 0:
         self.cards_infos[self.currentIndex].setSelected(True, True)
   
-  
+  @pyqtSlot(str)
   def search(self, keyWord: str):
-    """ search icons """
-    items = self.trie.items(keyWord.lower())
-    indexes = {i[1] for i in items}
-    self.flowLayout.removeAllWidgets()
+    """ search image """
+    self.add_TagButton(keyWord)
+    # items = self.trie.items(keyWord.lower())
+    # indexes = {i[1] for i in items}
+    # self.flowLayout.removeAllWidgets()
 
-    for i, card in enumerate(self.cards):
-        isVisible = i in indexes
-        card.setVisible(isVisible)
-        if isVisible:
-            self.flowLayout.addWidget(card)
-            
+    # for i, card in enumerate(self.cards):
+    #     isVisible = i in indexes
+    #     card.setVisible(isVisible)
+    #     if isVisible:
+    #         self.flowLayout.addWidget(card)
+  
+  
+  def resetData(self):
+    self.flowLayout.removeAllWidgets()
+    self.loaded_chunks_size=0
+    self.loaded_cards_num=0
+    self.loadImageLazy=True #是否懒加载
+     # 添加懒加载相关
+    self.imageQueue = []  # 待加载图片队列
+    self.lazyIndex = 0  # 用于延迟加载的索引
+    self.cards_per_row = 0  # 每行卡片数
+    self.image_data = []  # 存储所有图片路径和文件名 = [] 
+    self.currentIndex = -1
+    self.allCards: list[ImageCard] = []
+    self.cards_infos = []
+    
+  @pyqtSlot()  
   def showAllImages(self):
     
+    self.resetData()
+    
     #D:\Qt_project\2024\image_search\thumbnail C:/Users/hansolo/Pictures
-    self.image_source_loader_thread=ImageSourceLoaderThread(r"D:\Qt_project\2024\image_search\thumbnail",recur=True)
+    self.image_source_loader_thread=ImageSourceLoaderThread(r"D:\Qt_project\2024\image_search\image_search\catches\thumbnail_image",recur=True)
     self.image_source_loader_thread.imageLoaded.connect(self.onImageLoaded)
     self.image_source_loader_thread.finished.connect(self.onImageLoadingFinished)
     self.image_source_loader_thread.start()
@@ -528,6 +443,7 @@ class ImageCardView(QWidget):
       self.loaded_chunks_size=self.loaded_chunks_size+1
     # print("-------------------------------------------------------")
   
+  @pyqtSlot(list)
   def onImageLoaded(self,image_files:list):
     self.image_data = image_files
     
@@ -537,12 +453,13 @@ class ImageCardView(QWidget):
     self.updateContentSize()
     self.updataVisableCards()
     
-    
+  @pyqtSlot()
   def onImageLoadingFinished(self):
     print("加载完成")
     self.image_source_loader_thread.deleteLater()
     self.image_source_loader_thread = None
-
+    
+  @pyqtSlot()
   def createCommandBarFlyout(self,pos):
     view = CommandBarView(self)
 
