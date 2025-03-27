@@ -18,5 +18,14 @@ if __name__=="__main__":
   text="白"
   url=f"{BASE_URL}/qdrant_images_search/search/{text}"
   re=requests.get(url=url)
+  print(re.json())
   
+  
+  folder_path=r"C:/Users/hansolo/Pictures"
+  message={
+    "folder_path":folder_path,
+    "recur" :False
+  }
+  url=f"{BASE_URL}/image_collect/generate/"
+  re=requests.get(url=url,json=message)
   print(re.json())

@@ -493,8 +493,8 @@ class ImageCardView(QWidget):
             
   def showAllImages(self):
     
-    
-    self.image_source_loader_thread=ImageSourceLoaderThread(r"C:/Users/hansolo/Pictures",recur=True)
+    #D:\Qt_project\2024\image_search\thumbnail C:/Users/hansolo/Pictures
+    self.image_source_loader_thread=ImageSourceLoaderThread(r"D:\Qt_project\2024\image_search\thumbnail",recur=True)
     self.image_source_loader_thread.imageLoaded.connect(self.onImageLoaded)
     self.image_source_loader_thread.finished.connect(self.onImageLoadingFinished)
     self.image_source_loader_thread.start()

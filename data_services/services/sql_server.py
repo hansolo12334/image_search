@@ -42,12 +42,19 @@ class SQLServer():
     await self.conn.execute('''
         INSERT OR REPLACE INTO image_descriptions (image_uuid,image_name ,image_path, thumbnail_path,description)
         VALUES (?, ?, ?,?,?)
-    ''', (image_name, image_path, json_description_str))
+    ''', (image_uuid,image_name, image_path,thumbnail_path, json_description_str))
     await self.conn.commit()
     
-  async def get_description(self,image_uuid):
+  async def get_description_byUuid(self,image_uuid):
     # print(image_uuid)
     async with self.conn.execute('SELECT description FROM image_descriptions WHERE image_uuid = ?', (image_uuid,)) as cursor:
+      result = await cursor.fetchone()
+      # print(result)
+    return result[0] if result else None 
+  
+  async def get_description_path(self,image_path):
+    # print(image_uuid)
+    async with self.conn.execute('SELECT description FROM image_descriptions WHERE image_path = ?', (image_path,)) as cursor:
       result = await cursor.fetchone()
       # print(result)
     return result[0] if result else None 

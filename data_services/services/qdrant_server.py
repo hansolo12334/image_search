@@ -1,4 +1,5 @@
 from qdrant_client import AsyncQdrantClient
+from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.http import models
 
 from loguru import logger
@@ -20,7 +21,7 @@ class QdrantServer():
     
     self.embedder=SentenceTransformer("BAAI/bge-base-zh-v1.5",device="cuda",cache_folder="D:\Qt_project/2024\image_search\BAAI_bge_base_zh_v1_5/1",local_files_only=True)  # 轻量级嵌入模型，输出 384 维向量
     
-    logger.success("qdrant_client 初始化成功")
+    # logger.success("qdrant_client 初始化成功")
     
   async def store_into_qdrant(self,image_name, image_uuid,image_path, thumbnail_path,descriptions):
     
@@ -59,9 +60,14 @@ class QdrantServer():
     
   async def search_similar_description(self,query_text, limit=4):
     query_vector = self.embedder.encode(query_text,device="cuda",normalize_embeddings=True).tolist()
-    search_result = await self.qdrant_client.query_points(
-                    collection_name="image_descriptions", query=query_vector, limit=limit,with_payload=True
-                   )
+    try:
+      search_result = await self.qdrant_client.query_points(
+                      collection_name="image_descriptions", query=query_vector, limit=limit,with_payload=True
+                    )
+    except UnexpectedResponse as e: 
+      if e.status_code == 404:
+        logger.error("qdrant不存在集合: image_descriptions")
+        return None
     
     messages=[]
     for point in search_result.points:
@@ -72,6 +78,7 @@ class QdrantServer():
         "score" : point.score
       }
       messages.append(message)
+      
     return json.dumps(messages)
   
   async def close(self):

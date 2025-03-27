@@ -1,0 +1,5 @@
+{
+  "lm_studio_url" : "http://localhost:1234/v1/chat/completions",
+  "data_base_path": "../../../catches/data.db",
+  "thumbnail_image_path": "../../../catches/thumbnail_image/"
+}
