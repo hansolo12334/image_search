@@ -29,7 +29,7 @@ async def get_image_description(image_id : str):
   else:
     message={
       "success" : True ,
-      "description" : json.loads(responce_description)
+      "description" : responce_description
     }
     return message
  

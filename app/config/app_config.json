@@ -3,5 +3,7 @@
   "remote_url" : "http://127.0.0.1:6006/v1/chat/completions",
   "use_remote" : true,
   "data_base_path": "../../../catches/data.db",
-  "thumbnail_image_path": "../../../catches/thumbnail_image/"
+  "thumbnail_folder": "../../../catches/thumbnail_image/",
+  "promot_descriptions": "详细描述这张图片,不要联想图片以外的事物,如果是生物,请描述她/它/他是谁,如果有名字,名字是什么？出处？她/它/他的动作、外貌细节、身体细节、表情、穿着、身体器官等,如果是其他物体，请描述它的颜色、状态、类型等细节",
+   "promot_description_tag": "使用10个关键词总结这个图片,不要联想图片以外的事物,输出格式: 1.xxx 2.xxx 3.xxx 4.xxx 5.xxx 6.xxx 7.xxx 8.xxx 9.xxx 10.xxx"
 }

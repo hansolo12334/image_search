@@ -22,10 +22,59 @@ class QdrantServer():
     self.embedder=SentenceTransformer("BAAI/bge-base-zh-v1.5",device="cuda",cache_folder="D:\Qt_project/2024\image_search\BAAI_bge_base_zh_v1_5/1",local_files_only=True)  # 轻量级嵌入模型，输出 384 维向量
     
     # logger.success("qdrant_client 初始化成功")
-    
+  
+  async def check_qdrant_point_exit(self,image_uuid:str):
+    point_id = str(image_uuid)
+    existing_points = await self.qdrant_client.retrieve(
+        collection_name=self.collection_name,
+        ids=[point_id],
+    )
+    if existing_points:
+      logger.warning(f"向量{point_id}已存在 跳过")
+      return  False
+    return True
+  
+  
   async def store_into_qdrant(self,image_name, image_uuid,image_path, thumbnail_path,descriptions):
     
     vectors=self.embedder.encode(descriptions, normalize_embeddings=True).tolist()
+    # 检查集合是否存在，如果不存在则创建
+    if not await self.qdrant_client.collection_exists(self.collection_name):
+      await self.qdrant_client.create_collection(
+            collection_name=self.collection_name,
+            vectors_config=models.VectorParams(size=self.embedder.get_sentence_embedding_dimension(), distance=models.Distance.COSINE)
+        )
+    
+    
+    
+    points = []
+    point_id = str(image_uuid)
+    
+    
+    
+    points.append(
+      models.PointStruct(
+          id=point_id,
+          vector=vectors,
+          payload={
+              "image_name": image_name,
+              "image_uuid":image_uuid,
+              "image_path": image_path,
+              "thumbnail_path": thumbnail_path,
+              "description": descriptions,
+          }
+      ))
+    
+    response =  await self.qdrant_client.upsert(
+        collection_name=self.collection_name,
+        points=points
+    )
+    logger.info("插入qdrant向量完成 状态: {}", response.status)
+    
+    
+  async def store_tags_in_qdrant(self,image_name, image_uuid,image_path, thumbnail_path,description_tags):
+    
+    vectors=self.embedder.encode(description_tags, normalize_embeddings=True).tolist()
     vector_size = len(vectors[0])  # 384（取决于嵌入模型）
     # 检查集合是否存在，如果不存在则创建
     if not await self.qdrant_client.collection_exists(self.collection_name):
@@ -35,7 +84,7 @@ class QdrantServer():
         )
       
     points = []
-    for vector,description in zip(vectors,descriptions):
+    for vector,description in zip(vectors,description_tags):
       point_id = str(uuid.uuid4())
       points.append(
         models.PointStruct(
@@ -55,8 +104,6 @@ class QdrantServer():
         points=points
     )
     logger.info("插入qdrant向量完成 状态: {}", response.status)
-    
-    
     
   async def search_similar_description(self,query_text, limit=4):
     query_vector = self.embedder.encode(query_text,device="cuda",normalize_embeddings=True).tolist()

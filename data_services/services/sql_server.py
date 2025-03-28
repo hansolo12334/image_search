@@ -30,20 +30,38 @@ class SQLServer():
             image_name TEXT NOT NULL,
             image_path TEXT NOT NULL UNIQUE,
             thumbnail_path TEXT NOT NULL UNIQUE,
-            description TEXT
+            description TEXT,
+            description_tags TEXT
         )
     ''')
     await self.conn.commit()
     logger.success("数据库初始化完成")
   
   
-  async def save_to_db(self,image_uuid,image_name, image_path, thumbnail_path,description):
-    json_description_str=json.dumps(description,ensure_ascii=False)
+  async def save_to_db(self,image_uuid,image_name, image_path, thumbnail_path,description,description_tags):
+    json_description_str=json.dumps(description_tags,ensure_ascii=False)
     await self.conn.execute('''
-        INSERT OR REPLACE INTO image_descriptions (image_uuid,image_name ,image_path, thumbnail_path,description)
-        VALUES (?, ?, ?,?,?)
-    ''', (image_uuid,image_name, image_path,thumbnail_path, json_description_str))
+        INSERT OR REPLACE INTO image_descriptions (image_uuid,image_name ,image_path, thumbnail_path,description,description_tags)
+        VALUES (?, ?, ?,?,?,?)
+    ''', (image_uuid,image_name, image_path,thumbnail_path, description,json_description_str))
     await self.conn.commit()
+  
+  async def update_to_db_with_description_tags(self,image_uuid,image_name, image_path, thumbnail_path,description_tags):
+    json_description_str=json.dumps(description_tags,ensure_ascii=False)
+    await self.conn.execute('''
+        UPDATE image_descriptions
+        SET description_tags = ?
+        WHERE image_uuid = ?
+    ''', (json_description_str,image_uuid))
+    await self.conn.commit() 
+    
+  async def update_to_db_with_description(self,image_uuid,image_name, image_path, thumbnail_path,description):
+    await self.conn.execute('''
+        UPDATE image_descriptions
+        SET description = ?
+        WHERE image_uuid = ?
+    ''', (description,image_uuid))
+    await self.conn.commit() 
     
   async def get_description_byUuid(self,image_uuid):
     # print(image_uuid)
