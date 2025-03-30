@@ -25,6 +25,9 @@ async def search_image(folder_path,recur=False):
   if recur:
       for root, _, files in os.walk(folder_path):
           for file in files:
+              if "科研" in root or "毕设" in root:
+                logger.info(f"跳过 {file}")
+                continue
               if file.lower().endswith(('.png', '.jpg', '.jpeg')):
                 file_path=Path(os.path.join(root, file)).as_posix()
                 image_files.update({file : file_path})
@@ -48,20 +51,20 @@ async def process_description(description:str)-> str:
   description=description.strip().replace('\n', ' ')
   return description
 
-async def generate_thumbnail_image(file_name,new_width=500):
+async def generate_thumbnail_image(image_path,new_width=500):
   
   thumbnail_folder=app_config.thumbnail_folder
     
-  image_name, ext = os.path.splitext(os.path.basename(file_name))
+  image_name, ext = os.path.splitext(os.path.basename(image_path))
   
   namespace = uuid.NAMESPACE_URL
-  file_uuid = uuid.uuid5(namespace, file_name)
+  file_uuid = uuid.uuid5(namespace, image_path)
   
   os.makedirs(thumbnail_folder, exist_ok=True)
       
   thumbnail_name = f"{file_uuid}{ext}"
   thumbnail_path = os.path.join(thumbnail_folder, thumbnail_name)
-  with Image.open(file_name) as img:
+  with Image.open(image_path) as img:
     original_width, original_height = img.size
     # 计算按比例缩放后的新高度
     new_height = int((new_width / original_width) * original_height)
@@ -94,7 +97,7 @@ async def generate_thumbnail_image(file_name,new_width=500):
   
   
 
-async def require_to_remote(image_base64: str,api_url:str, promot: str,max_retries=3,retry_delay=5,timeout=10):
+async def require_to_remote(image_base64: str,api_url:str, prompt: str,max_retries=3,retry_delay=5,timeout=10):
     headers = {
         "Content-Type": "application/json",
         "Authorization": "Bearer token-abc123"
@@ -107,7 +110,7 @@ async def require_to_remote(image_base64: str,api_url:str, promot: str,max_retri
               "content": [
                   {
                       "type": "text", #不要联想图片以外的事物,
-                      "text": promot
+                      "text": f"首先如果没有出现下面的信息,就不要生成包括下面信息的内容和标题,{prompt}"
                   },
                   {
                     "type": "image_url",
@@ -142,14 +145,16 @@ async def require_to_remote(image_base64: str,api_url:str, promot: str,max_retri
                 time.sleep(retry_delay)
             else:
                 logger.error("达到最大重试次数，放弃请求")
-                raise  #
+                # raise  # 或返回 None
+                return ""
         except requests.exceptions.RequestException as e:
             logger.error(f"请求失败: {e}")
             if attempt < max_retries - 1:
                 time.sleep(retry_delay)
             else:
                 logger.error("达到最大重试次数，放弃请求")
-                raise  # 或返回 None
+                # raise  # 或返回 None
+                return ""
             
         except requests.exceptions.HTTPError as http_err:
             logger.error(f"HTTP 错误: {http_err}")
@@ -157,7 +162,8 @@ async def require_to_remote(image_base64: str,api_url:str, promot: str,max_retri
                 time.sleep(retry_delay)
             else:
                 logger.error("达到最大重试次数，放弃请求")
-                raise  # 或返回 None
+                # raise  # 或返回 None
+                return ""
             
         except json.JSONDecodeError:
             logger.error("响应不是有效的 JSON 格式:", response.text)
@@ -165,7 +171,8 @@ async def require_to_remote(image_base64: str,api_url:str, promot: str,max_retri
                 time.sleep(retry_delay)
             else:
                 logger.error("达到最大重试次数，放弃请求")
-                raise  # 
+                # raise  # 或返回 None
+                return ""
             # return ""
     
 
@@ -249,8 +256,8 @@ async def generate_image_collection(request_data: dict):
       
       if app_config.use_remote:
         logger.info("use_remote")
-        description=await require_to_remote(image_base64,app_config.remote_url,app_config.promot_descriptions)
-        description_tags=await require_to_remote(image_base64,app_config.remote_url,app_config.promot_description_tag)
+        description=await require_to_remote(image_base64,app_config.remote_url,app_config.prompt_descriptions)
+        description_tags=await require_to_remote(image_base64,app_config.remote_url,app_config.prompt_description_tag)
       else:
         description=await require_to_lm_studio(image_base64,"http://localhost:1234/v1/chat/completions")
       end_time = time.time()
@@ -267,14 +274,17 @@ async def generate_image_collection(request_data: dict):
       print(description)
       print(description_tags)
       print(f"{round(run_time,1)}/s ---------------------------")
-      # 保存到sql数据库
-      await image_collect_server.sql_service.save_to_db( file_uuid,image_name_kye, image_path, thumbnail_path,description,description_tags)
-      #保存到qdrant数据库
-      if len(description)<=0:
+      
+      
+      if len(description)<=0 or len(description_tags)<=0:
           logger.warning("生成描述失败")
       else:
-        await image_collect_server.qdrant_service.store_tags_in_qdrant(image_name_kye,file_uuid,image_path,thumbnail_path,description_tags)
-        await image_collect_server.qdrant_service.store_into_qdrant(image_name_kye,file_uuid,image_path,thumbnail_path,description)
+        # 保存到sql数据库
+        await image_collect_server.sql_service.save_to_db( file_uuid,image_name_kye, image_path, thumbnail_path,description,description_tags)
+        #保存到qdrant数据库
+        # await image_collect_server.qdrant_service.store_tags_in_qdrant(image_name_kye,file_uuid,image_path,thumbnail_path,description_tags)
+        if not await image_collect_server.qdrant_service.check_qdrant_point_exit(file_uuid):
+          await image_collect_server.qdrant_service.store_into_qdrant(image_name_kye,file_uuid,image_path,thumbnail_path,description)
       
   return {"success": True}
 
@@ -293,8 +303,8 @@ async def update_image_collection_description(request_data: dict):
     
     logger.info(f"{idx}/{len(image_files.keys())} ---------------------------")
     image_path=image_files[image_name_kye]
-    # existing_desc = await image_collect_server.sql_service.get_description_path(image_path)
-    existing_desc=False
+    existing_desc = await image_collect_server.sql_service.get_description_path(image_path)
+    # existing_desc=False
     if existing_desc:
       logger.warning(f"数据库中已有描述: {existing_desc}")
     else:
@@ -303,7 +313,7 @@ async def update_image_collection_description(request_data: dict):
       
       if app_config.use_remote:
         logger.info("use_remote")
-        description=await require_to_remote(image_base64,app_config.remote_url,app_config.promot_descriptions)
+        description=await require_to_remote(image_base64,app_config.remote_url,app_config.prompt_descriptions)
       else:
         description=await require_to_lm_studio(image_base64,"http://localhost:1234/v1/chat/completions")
       end_time = time.time()
@@ -325,7 +335,7 @@ async def update_image_collection_description(request_data: dict):
         # 保存到sql数据库
         await image_collect_server.sql_service.update_to_db_with_description( file_uuid,image_name_kye, image_path, thumbnail_path,description)
          #保存到qdrant数据库
-        if not await image_collect_server.check_qdrant_point_exit(file_uuid):
+        if not await image_collect_server.qdrant_service.check_qdrant_point_exit(file_uuid):
           await image_collect_server.qdrant_service.store_into_qdrant(image_name_kye,file_uuid,image_path,thumbnail_path,description)
       
   return {"success": True}

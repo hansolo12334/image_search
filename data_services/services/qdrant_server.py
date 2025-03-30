@@ -22,7 +22,17 @@ class QdrantServer():
     self.embedder=SentenceTransformer("BAAI/bge-base-zh-v1.5",device="cuda",cache_folder="D:\Qt_project/2024\image_search\BAAI_bge_base_zh_v1_5/1",local_files_only=True)  # 轻量级嵌入模型，输出 384 维向量
     
     # logger.success("qdrant_client 初始化成功")
+    await self.check_and_init_qdrant_client()
   
+  async def check_and_init_qdrant_client(self):
+    # 检查集合是否存在，如果不存在则创建
+    if not await self.qdrant_client.collection_exists(self.collection_name):
+      logger.warning(f"{self.collection_name} 不存在 创建qdrant集合")
+      await self.qdrant_client.create_collection(
+            collection_name=self.collection_name,
+            vectors_config=models.VectorParams(size=self.embedder.get_sentence_embedding_dimension(), distance=models.Distance.COSINE)
+        )
+      
   async def check_qdrant_point_exit(self,image_uuid:str):
     point_id = str(image_uuid)
     existing_points = await self.qdrant_client.retrieve(
@@ -31,19 +41,19 @@ class QdrantServer():
     )
     if existing_points:
       logger.warning(f"向量{point_id}已存在 跳过")
-      return  False
-    return True
+      return  True
+    return False
   
   
   async def store_into_qdrant(self,image_name, image_uuid,image_path, thumbnail_path,descriptions):
     
     vectors=self.embedder.encode(descriptions, normalize_embeddings=True).tolist()
     # 检查集合是否存在，如果不存在则创建
-    if not await self.qdrant_client.collection_exists(self.collection_name):
-      await self.qdrant_client.create_collection(
-            collection_name=self.collection_name,
-            vectors_config=models.VectorParams(size=self.embedder.get_sentence_embedding_dimension(), distance=models.Distance.COSINE)
-        )
+    # if not await self.qdrant_client.collection_exists(self.collection_name):
+    #   await self.qdrant_client.create_collection(
+    #         collection_name=self.collection_name,
+    #         vectors_config=models.VectorParams(size=self.embedder.get_sentence_embedding_dimension(), distance=models.Distance.COSINE)
+    #     )
     
     
     
@@ -120,7 +130,9 @@ class QdrantServer():
     for point in search_result.points:
       message={
         "image_name" : point.payload["image_name"],
+        "image_path" : point.payload["image_path"],
         "image_uuid" : point.payload["image_uuid"],
+        "thumbnail_path": point.payload["thumbnail_path"],
         "description" : point.payload["description"],
         "score" : point.score
       }

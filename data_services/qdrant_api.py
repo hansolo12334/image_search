@@ -8,9 +8,11 @@ from fastapi import APIRouter
 qdrant_server: ServiceProvider =None
 qdrant_image_router = APIRouter(prefix="/qdrant_images_search", tags=["qdrant_image_search"])
 
-@qdrant_image_router.get("/search/{query_text}")
-async def get_image_description(query_text : str):
-  responce= await qdrant_server.qdrant_service.search_similar_description(query_text)
+@qdrant_image_router.get("/search/")
+async def find_similar_image_by_description(request_data: dict):
+  query_text=request_data['key_words']
+  limit=request_data['limit']
+  responce= await qdrant_server.qdrant_service.search_similar_description(query_text,limit=limit)
   if responce is None:
     message={
       "success" : False,
@@ -19,7 +21,7 @@ async def get_image_description(query_text : str):
     return message
   else:
     message={
-      "success" : False,
+      "success" : True,
       "description" : json.loads(responce) 
     }
     return message

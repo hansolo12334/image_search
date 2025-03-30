@@ -2,6 +2,9 @@ import json
 import os
 import chardet
 
+# CONFIG_PATH="../app/config/app_config.json"
+CONFIG_PATH="../app/config/temp.json"
+
 class AppConfig:
   def __init__(self):
     self.lm_studio_url : str
@@ -9,8 +12,10 @@ class AppConfig:
     self.thumbnail_folder: str
     self.use_remote: bool
     self.remote_url: str
-    self.promot_descriptions: str
-    self.promot_description_tag: str
+    self.fast_api_url:str
+    
+    self.prompt_descriptions: str
+    self.prompt_description_tag: str
     
     self.init()
   
@@ -21,7 +26,7 @@ class AppConfig:
   
   def init(self):
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(base_dir, "../app/config/app_config.json")
+    config_path = os.path.join(base_dir, CONFIG_PATH)
     config_path=os.path.abspath(config_path)
     encoding = self.detect_encoding(config_path)
     with open(config_path,encoding=encoding) as f:
@@ -32,9 +37,10 @@ class AppConfig:
       
       self.use_remote=data["use_remote"]
       self.remote_url=data["remote_url"]
+      self.fast_api_url=data["fast_api_url"]
       
-      self.promot_descriptions=data["promot_descriptions"]
-      self.promot_description_tag=data["promot_description_tag"]
+      self.prompt_descriptions=data["prompt_descriptions"]
+      self.prompt_description_tag=data["prompt_description_tag"]
       
       
     self.data_base_path = os.path.join(config_path, self.data_base_path)

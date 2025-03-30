@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, QPoint,QThread,pyqtSignal,pyqtSlot,QTimer,QEvent,QU
 from PyQt5.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget, QHBoxLayout
 
 
-from qfluentwidgets import SearchLineEdit,PushButton,StrongBodyLabel
+from qfluentwidgets import SearchLineEdit,PushButton,StrongBodyLabel,LineEditButton
 
 
 
@@ -11,7 +11,7 @@ from qfluentwidgets import SearchLineEdit,PushButton,StrongBodyLabel
 from pathlib import Path
 import os
 
-class LineEdit(SearchLineEdit):
+class CustomSearchLineEdit(SearchLineEdit):
   """ Search line edit """
     
 
@@ -22,6 +22,9 @@ class LineEdit(SearchLineEdit):
     # self.textChanged.connect(self.search)
     
     self.returnPressed.connect(self.search)
+    
+
+
     
     
     
