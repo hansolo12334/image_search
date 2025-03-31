@@ -4,7 +4,7 @@ from PyQt5.QtGui import QPixmap, QDesktopServices,QFontMetrics
 from PyQt5.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget, QHBoxLayout
 
 
-from qfluentwidgets import SmoothScrollArea, FlowLayout, ToggleToolButton,BodyLabel, SingleDirectionScrollArea,ImageLabel,SearchLineEdit,CommandBarView,Action,Flyout,FlyoutAnimationType,PushButton,StrongBodyLabel,IconWidget,LineEditButton,LineEdit
+from qfluentwidgets import SmoothScrollArea, FlowLayout, ToggleToolButton,BodyLabel, SingleDirectionScrollArea,ImageLabel,SearchLineEdit,CommandBarView,Action,Flyout,FlyoutAnimationType,PushButton,TransparentToolButton,IconWidget,LineEditButton,LineEdit
 
 from qfluentwidgets import FluentIcon as FIF
 
@@ -16,7 +16,7 @@ from ..common.translator import Translator
 from pathlib import Path
 import os
 
-from .image_interface_utils import CustomSearchLineEdit,TagButton,ExampleCard
+from .image_interface_utils import CustomSearchLineEdit,TagButton,ExampleCard,TagButtonState
 
 from data_services.config import app_config
 
@@ -129,7 +129,7 @@ class ImageCard(QFrame):
     if self.isImageLoaded:
       return 
     
-    print(f"加载 图片 {index}")
+    # print(f"加载 图片 {index}")
 
     self.image_info=image_info
     
@@ -171,7 +171,10 @@ class ImageCardView(QWidget):
     
     self.searchLineEdit = CustomSearchLineEdit(self)
     
+    self.switchSearchModButton =TransparentToolButton(FIF.ADD, self)
+    self.switchMod= TagButtonState.ADD
     self.searchSettingButton = ToggleToolButton(FIF.FILTER, self)
+    
     
     self.imageLimitLineEdit=LineEdit()
     self.imageLimitLabel=BodyLabel("图片数量限制<=")
@@ -223,10 +226,11 @@ class ImageCardView(QWidget):
     # self.vBoxLayout.addWidget(self.searchLineEdit)
     
     self.searchSettingButton.setObjectName("searchSettingButton")
+    self.searchComboLayout.addWidget(self.switchSearchModButton)
     self.searchComboLayout.addWidget(self.searchLineEdit)
     self.searchComboLayout.addWidget(self.searchSettingButton)
     
-    
+    self.switchSearchModButton.clicked.connect(self.onSwichSearchModBtClicked)
     self.searchSettingButton.clicked.connect(self.showSearchSetting)
     
     # self.searchComboLayout.addWidget(self.imageLimitLabel)
@@ -270,6 +274,14 @@ class ImageCardView(QWidget):
     self.scrollArea.resizeEvent=self.onScrollAreaResized
   
   
+  def onSwichSearchModBtClicked(self):
+    if self.switchMod==TagButtonState.ADD:
+      self.switchSearchModButton.setIcon(FIF.REMOVE)
+      self.switchMod=TagButtonState.REMOVE
+    elif  self.switchMod==TagButtonState.REMOVE:
+      self.switchSearchModButton.setIcon(FIF.ADD)
+      self.switchMod=TagButtonState.ADD
+      
   def addSearchSettingLayout(self):
     self.imageLimitLineEdit.setText(str(200))
     self.imageScoreLimitLineEdit.setText(str(0.45))
@@ -332,14 +344,14 @@ class ImageCardView(QWidget):
   
   @pyqtSlot(TagButton)
   def delete_TagButton(self):
-    print(self.sender().text())
+    # print(self.sender().text())
     for button in self.tagButtons:
       if button.text()==self.sender().text():
         self.tagCardLayout.removeWidget(button)
         self.tagButtons.remove(button)
         button.deleteLater()
         button=None
-        print("删除按钮")
+        # print("删除按钮")
         self.tagCardLayout.update()
         break
 
@@ -348,7 +360,10 @@ class ImageCardView(QWidget):
     tagbutton.button_delete.connect(self.delete_TagButton)
     self.tagButtons.append(tagbutton)
     self.tagCardLayout.addWidget(tagbutton)
-    pass
+    if self.switchMod==TagButtonState.ADD:
+      tagbutton.setTageState(False)
+    else:
+      tagbutton.setTageState(True)
     
   def loadImage(self):
     """从队列中加载图片"""
@@ -356,7 +371,7 @@ class ImageCardView(QWidget):
         return
     idx = self.imageQueue.pop(0)  # 从队列头部取卡片
     self.allCards[idx].set_image(idx,self.image_data[idx])
-    print(f"{idx}/ {len(self.image_data)}")
+    # print(f"{idx}/ {len(self.image_data)}")
     if self.imageQueue:
         self.loadTimer.start()
     else:
@@ -370,7 +385,7 @@ class ImageCardView(QWidget):
     if self.lazyIndex in self.cards_infos:
         card = self.allCards[self.lazyIndex]
         if not card.isImageLoaded:
-          print(f"{self.lazyIndex} /{len(self.image_data)}")
+          # print(f"{self.lazyIndex} /{len(self.image_data)}")
           card.set_image(self.lazyIndex,self.image_data[self.lazyIndex])
     # 继续延迟加载
     
@@ -399,7 +414,7 @@ class ImageCardView(QWidget):
       QTimer.singleShot(0, lambda: self.flowLayout._doLayout(self.scrollWidget.rect(), True))
       
   def loadVisableCards(self,start_idx,end_idx):
-    print(f"加载图片 {start_idx}~{end_idx}")
+    # print(f"加载图片 {start_idx}~{end_idx}")
     for idx in range(start_idx,end_idx):
       # pass
       self.imageQueue.append(idx)
@@ -460,13 +475,62 @@ class ImageCardView(QWidget):
     if self.currentIndex >= 0:
         self.cards_infos[self.currentIndex].setSelected(True, True)
   
-  @pyqtSlot(str)
+  
   def search(self, keyWord: str):
     """ search image """
-    print(keyWord)
-    self.add_TagButton(keyWord)
+    if len(keyWord)>0:
+      for tag in self.tagButtons:
+        if tag.SELECTED_STATE==self.switchMod and tag.text()==keyWord:
+          return
+        elif tag.SELECTED_STATE!=self.switchMod and tag.text()==keyWord:
+          self.tagCardLayout.removeWidget(tag)
+          self.tagButtons.remove(tag)
+          tag.deleteLater()
+          tag=None
+          self.tagCardLayout.update()
+          keyWord=''
     
-    self.serice_connect_thread=ServiceConnection(key_words=keyWord,limit=int(self.imageLimitLineEdit.text()))
+    postive_keywords=''
+    negative_keywords=''
+    
+    if len(keyWord)<=0 and len(self.tagButtons)>0:
+      for tag in self.tagButtons:
+        if tag.SELECTED_STATE==TagButtonState.ADD:
+          postive_keywords=tag.text() if len(postive_keywords)==0 else postive_keywords+' '+tag.text()
+        else:
+          negative_keywords=tag.text() if len(negative_keywords)==0 else negative_keywords+' '+tag.text()
+    elif len(keyWord)>0 and len(self.tagButtons)>0:
+      for tag in self.tagButtons:
+        if tag.SELECTED_STATE==TagButtonState.ADD:
+          postive_keywords=tag.text() if len(postive_keywords)==0 else postive_keywords+' '+tag.text()
+        else:
+          negative_keywords=tag.text() if len(negative_keywords)==0 else negative_keywords+' '+tag.text()
+        
+      if self.switchMod==TagButtonState.ADD:
+        postive_keywords=postive_keywords+' ' +keyWord
+      else:
+        negative_keywords=negative_keywords+' '+keyWord
+        
+    elif len(keyWord)>0 and len(self.tagButtons)<=0:
+      if self.switchMod==TagButtonState.ADD:
+        postive_keywords=keyWord
+      else:
+        negative_keywords=keyWord
+      
+    print(f"postive_keywords {postive_keywords}")
+    print(f"negative_keywords {negative_keywords}")
+    print(len(postive_keywords))
+    if len(keyWord)>0:
+      self.add_TagButton(keyWord)
+    if len(postive_keywords)<=0 and len(negative_keywords)<=0:
+      self.showAllImages()
+      return
+    
+    self.serice_connect_thread=ServiceConnection(positive_key_words=postive_keywords,
+                                                 negative_key_words=negative_keywords,
+                                                 limit=int(self.imageLimitLineEdit.text())
+                                                 
+                                                 )
     
     self.serice_connect_thread.images_info.connect(self.display_searched_images)
     self.serice_connect_thread.finished.connect(self.on_serice_connect_thread_finished)
@@ -516,8 +580,13 @@ class ImageCardView(QWidget):
     
     self.scrollArea.verticalScrollBar().setValue(0)
     self.flowLayout.update()
-  @pyqtSlot()  
+ 
   def showAllImages(self):
+    if len(self.tagButtons)>0:
+      self.search('')
+      return
+    
+    print("showAllImages")
     
     self.resetData()
     
@@ -529,9 +598,9 @@ class ImageCardView(QWidget):
     
   
   def load_card_chunk(self):
-    print(self.loaded_cards_num)
+    # print(self.loaded_cards_num)
     if self.loaded_cards_num>len(self.image_data):
-      print("load_card_chunk already")
+      # print("load_card_chunk already")
       return
 
     
@@ -547,17 +616,17 @@ class ImageCardView(QWidget):
         image_path=self.image_data[index].image_path
         self.addIcon(idx,image_path,str(idx)+' '+image_name)
         self.loaded_cards_num=self.loaded_cards_num+1
-        print(f"addIcon :{idx}")
+        # print(f"addIcon :{idx}")
       else:
         if self.loadImageLazy:
           # is_remain_card=True
           self.loaded_cards_num=len(self.image_data)
-          print(f"将剩余{current_idx}-{self.loaded_cards_num}加载完")
+          # print(f"将剩余{current_idx}-{self.loaded_cards_num}加载完")
           self.loadVisableCards(current_idx,len(self.image_data))
         break
       
       
-    print(f"next_index {next_idx} / {len(self.image_data)}")
+    # print(f"next_index {next_idx} / {len(self.image_data)}")
       
     if next_idx<=len(self.image_data):
       self.loadVisableCards(current_idx,next_idx)
@@ -570,13 +639,13 @@ class ImageCardView(QWidget):
     
     self.load_card_chunk()
 
-    print("预加载完成")
+    # print("预加载完成")
     self.updateContentSize()
     self.updataVisableCards()
     
   @pyqtSlot()
   def onImageLoadingFinished(self):
-    print("加载完成")
+    # print("加载完成")
     self.image_source_loader_thread.deleteLater()
     self.image_source_loader_thread = None
     
@@ -595,7 +664,7 @@ class ImageCardView(QWidget):
     Flyout.make(view, pos, self, FlyoutAnimationType.SLIDE_LEFT)
     
   def resizeEvent(self, event):
-    print(self.scrollWidget.width(),self.scrollWidget.height())
+    # print(self.scrollWidget.width(),self.scrollWidget.height())
     return super().resizeEvent(event)
    
 class ImageInterface(ImageGalleryInterface):

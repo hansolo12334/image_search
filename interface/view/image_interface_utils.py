@@ -10,6 +10,7 @@ from qfluentwidgets import SearchLineEdit,PushButton,StrongBodyLabel,LineEditBut
 
 from pathlib import Path
 import os
+from enum import Enum
 
 class CustomSearchLineEdit(SearchLineEdit):
   """ Search line edit """
@@ -26,14 +27,17 @@ class CustomSearchLineEdit(SearchLineEdit):
 
 
     
-    
+class TagButtonState(Enum):
+  ADD=0,
+  REMOVE=1
+ 
     
 class TagButton(PushButton):
   button_delete=pyqtSignal(PushButton)
   def __init__(self, parent: QWidget = None):
     super().__init__(parent)
     
-    self.SELECTED_STATE=0 #0 包含  1 排除
+    self.SELECTED_STATE=TagButtonState.ADD #0 包含  1 排除
     self.selected_state_changed=False
     self.delete_button_timer=QTimer(interval=800, timeout=self.exclude_button, singleShot=True)
     
@@ -62,21 +66,23 @@ class TagButton(PushButton):
    
   def exclude_button(self):
     if self.isPressed is True:
-      if self.SELECTED_STATE != 1:
+      if self.SELECTED_STATE ==TagButtonState.ADD:
         print("排除")
-        self.SELECTED_STATE=1
-        font=self.font()
-        font.setStrikeOut(True)
-        self.setFont(font)
+        # self.SELECTED_STATE=TagButtonState.REMOVE
+        self.setTageState(True)
       else:
         print("包含")
-        self.SELECTED_STATE=0
-        font=self.font()
-        font.setStrikeOut(False)
-        self.setFont(font)
         
+        self.setTageState(False)
+   
       self.selected_state_changed=True
-
+      
+  def setTageState(self,state: bool):
+    font=self.font()
+    font.setStrikeOut(state)
+    self.setFont(font)
+    self.SELECTED_STATE=TagButtonState.ADD if not state else TagButtonState.REMOVE
+    
 class ExampleCard(QWidget):
     """ Example card """
 

@@ -1,11 +1,15 @@
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.http import models
-
 from loguru import logger
 from sentence_transformers import SentenceTransformer 
 import uuid
 import json
+from pydantic import ValidationError
+
+from fastapi.params import Depends
+
+from data_services.search_params import FilterParams,SearchParams
 
 class QdrantServer():
   def __init__(self):
@@ -115,15 +119,37 @@ class QdrantServer():
     )
     logger.info("插入qdrant向量完成 状态: {}", response.status)
     
-  async def search_similar_description(self,query_text, limit=4):
-    query_vector = self.embedder.encode(query_text,device="cuda",normalize_embeddings=True).tolist()
+  async def search_similar_description(self, search_param: SearchParams,filter_params:FilterParams):
+    
+    positive_query_vector =[self.embedder.encode(search_param.positive_descriptions,device="cuda",normalize_embeddings=True).tolist() ] if len(search_param.positive_descriptions)>0  else None
+    
+    
+    negative_query_vector = [self.embedder.encode(search_param.negative_descriptions,device="cuda",normalize_embeddings=True).tolist()] if search_param.negative_descriptions is not None else None
+    
+    search_mod=models.RecommendStrategy.AVERAGE_VECTOR if search_param.search_mod=="average" else models.RecommendStrategy.BEST_SCORE
     try:
+      logger.info("正在进行qdrant查询。。。")
       search_result = await self.qdrant_client.query_points(
-                      collection_name="image_descriptions", query=query_vector, limit=limit,with_payload=True
+                      collection_name="image_descriptions",
+                      query=models.RecommendQuery(
+                        recommend=models.RecommendInput(
+                          positive=positive_query_vector,
+                          negative=negative_query_vector,
+                          strategy=search_mod
+                        )
+                        ),
+                      query_filter=self.get_filters_by_params(filter_params),
+                      limit=search_param.limit_num,
+                      with_payload=True
                     )
-    except UnexpectedResponse as e: 
-      if e.status_code == 404:
-        logger.error("qdrant不存在集合: image_descriptions")
+    except ValidationError as e:
+            logger.error(f"查询参数验证失败: {str(e)}")
+            return None
+    except UnexpectedResponse as e:
+        logger.error(f"Qdrant 查询失败: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"未知错误: {str(e)}")
         return None
     
     messages=[]
@@ -138,7 +164,37 @@ class QdrantServer():
       }
       messages.append(message)
       
-    return json.dumps(messages)
+    return messages
   
   async def close(self):
     await self.qdrant_client.close()
+    
+    
+    
+  @staticmethod
+  def get_filters_by_params(params:FilterParams | None)->models.Filter | None: 
+    if params is None:
+      return None
+    
+    positive_filters=[]
+    negative_filters=[]
+    
+    if params.image_name is not None:
+      positive_filters.append(models.FieldCondition(
+        key="image_name",
+        match=models.MatchAny(
+          any=params.image_name
+        )
+      ))
+    
+    
+      
+    if len(positive_filters)<=0 and len(negative_filters)<=0:
+      return None
+    
+    return models.Filter(
+      must=positive_filters,
+      must_not=negative_filters
+    ) 
+    
+    

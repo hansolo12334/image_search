@@ -4,15 +4,22 @@ import json
 
 from fastapi import APIRouter
 
+from data_services.search_params import SearchParams,FilterParams
+from typing import Annotated
+from fastapi import Depends
+
 
 qdrant_server: ServiceProvider =None
 qdrant_image_router = APIRouter(prefix="/qdrant_images_search", tags=["qdrant_image_search"])
 
-@qdrant_image_router.get("/search/")
-async def find_similar_image_by_description(request_data: dict):
-  query_text=request_data['key_words']
-  limit=request_data['limit']
-  responce= await qdrant_server.qdrant_service.search_similar_description(query_text,limit=limit)
+@qdrant_image_router.post("/search")
+async def find_similar_image_by_description(
+                              search_params: SearchParams, 
+                              filter_params: Annotated[FilterParams,Depends(FilterParams)]):
+  
+
+  responce= await qdrant_server.qdrant_service.search_similar_description(search_params,filter_params)
+
   if responce is None:
     message={
       "success" : False,
@@ -22,6 +29,6 @@ async def find_similar_image_by_description(request_data: dict):
   else:
     message={
       "success" : True,
-      "description" : json.loads(responce) 
+      "description" : responce
     }
     return message
